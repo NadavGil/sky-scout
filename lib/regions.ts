@@ -76,3 +76,8 @@ export function stateLabel(code: string): string {
   if (!found) return code
   return found[0].replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
+
+export const STATE_ABBREVIATIONS = new Set(Object.values(STATE_NAMES))
+
+// These abbreviations are also ordinary words. Accept them only when typed in capitals.
+export const AMBIGUOUS_STATE_ABBREVIATIONS = new Set(["OR", "IN", "ME", "OH", "OK", "ID", "AL", "DE", "HI", "PA", "CO", "LA"])

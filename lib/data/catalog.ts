@@ -1,5 +1,6 @@
 import fs from "fs"
 import path from "path"
+import { repairCatalog } from "@/lib/data/repair"
 import type { Catalog } from "@/lib/types"
 
 let cached: Catalog | null = null
@@ -7,7 +8,7 @@ let cached: Catalog | null = null
 export function getCatalog(): Catalog {
   if (cached) return cached
   const file = path.join(process.cwd(), "data/snapshot/catalog.json")
-  cached = JSON.parse(fs.readFileSync(file, "utf8")) as Catalog
+  cached = repairCatalog(JSON.parse(fs.readFileSync(file, "utf8")) as Catalog)
   return cached
 }
 

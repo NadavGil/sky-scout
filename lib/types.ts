@@ -75,6 +75,7 @@ export type Catalog = {
     faa: string[]
     ntad: string[]
   }
+  aliases?: Record<string, string>
 }
 
 export type Metric =
@@ -114,6 +115,7 @@ export type Intent =
       limit: number | null
       groupBy: "airport" | "state"
       notes: string[]
+      year?: number
     }
   | {
       kind: "compare"
@@ -122,6 +124,7 @@ export type Intent =
       terminal: boolean
       congestion: boolean
       notes: string[]
+      year?: number
     }
   | {
       kind: "airport"
@@ -130,6 +133,7 @@ export type Intent =
       terminal: boolean
       congestion: boolean
       notes: string[]
+      year?: number
     }
 
 export type Assumption = {

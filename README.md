@@ -31,7 +31,9 @@ The capacity score uses only airports that have every input:
 - 24% FAA enplanement change from 2023 to 2024
 - 20% August 2026 share of departures delayed at least 15 minutes
 
-Percentiles are computed inside the airports being compared. A missing input drops that airport from the score. It is not imputed. A higher delay rate raises the score because the formula treats it as operational pressure.
+Percentiles use every joined airport that has all four inputs. A state or region list uses those same scores, so an airport does not get a new number when the question changes. A missing input drops that airport from the score. It is not imputed. A higher delay rate raises the score because the formula treats it as operational pressure.
+
+The loader drops foreign fields that collided with a local code, and it keeps one row where an FAA id and a traffic code are the same airport: GRO is ROP, SAW is MQT, TNI is TIQ, and GSN is SPN. PBI is in the FAA file and did not join, so questions about Palm Beach International are refused.
 
 The score is not revenue, cost, NPV, or a terminal-versus-runway diagnosis. Seats and gates are not in these files.
 

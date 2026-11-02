@@ -82,6 +82,7 @@ export function Workspace({ summary }: { summary: Summary }) {
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
   const [panel, setPanel] = useState<"chat" | "result">("chat")
   const sessionId = useRef(typeof crypto !== "undefined" ? crypto.randomUUID() : "desk")
+  const request = useRef(0)
   const recognition = useRef<SpeechRecognition | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
   const latest = messages.findLast((message) => message.answer)
@@ -101,6 +102,7 @@ export function Workspace({ summary }: { summary: Summary }) {
   async function ask(text: string) {
     const message = text.trim()
     if (!message || loading) return
+    const id = ++request.current
     setDraft("")
     setError(null)
     setPanel("chat")
@@ -112,17 +114,20 @@ export function Workspace({ summary }: { summary: Summary }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, sessionId: sessionId.current }),
       })
+      if (id !== request.current) return
       if (!response.ok) throw new Error("The desk could not read that request.")
       const answer = (await response.json()) as Answer
+      if (id !== request.current) return
       setMessages((current) => [
         ...current,
         { id: crypto.randomUUID(), role: "assistant", text: answer.reply, answer },
       ])
       setPanel("result")
     } catch (caught) {
+      if (id !== request.current) return
       setError(caught instanceof Error ? caught.message : "The desk could not read that request.")
     } finally {
-      setLoading(false)
+      if (id === request.current) setLoading(false)
     }
   }
 
@@ -165,7 +170,7 @@ export function Workspace({ summary }: { summary: Summary }) {
             <p className="text-xs tracking-[0.18em] text-primary uppercase">Capacity desk</p>
             <h1 className="font-[family-name:var(--font-serif)] text-3xl text-foreground">Sky Scout</h1>
             <p className="max-w-xl text-sm text-muted-foreground">
-              Ranks US airports for added flight capacity, and answers only from the public files loaded on this desk.
+              Ranks US airports and territories for added flight capacity, and answers only from the public files loaded on this desk.
               If a figure is not there, it says so.
             </p>
           </div>

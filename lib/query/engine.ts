@@ -1,5 +1,5 @@
 import type { Airport, Assumption, Catalog, Intent, Metric, QueryResult, ResultRow } from "@/lib/types"
-import { stateLabel } from "@/lib/regions"
+import { REGIONS, stateLabel } from "@/lib/regions"
 import { SCORE_WEIGHTS, compositeScore, percentileRanks, quantile, type ScoreInputs } from "@/lib/scoring/score"
 
 const STRONG_FLOOR = 100_000
@@ -64,7 +64,7 @@ function sourceAssumptions(extra: Assumption[] = []): Assumption[] {
     },
     {
       label: "Score",
-      detail: `The capacity score is ${Math.round(SCORE_WEIGHTS.pressure * 100)}% departures per long runway, ${Math.round(SCORE_WEIGHTS.scale * 100)}% log of 2024 domestic enplanements, ${Math.round(SCORE_WEIGHTS.yoy * 100)}% FAA enplanement change, and ${Math.round(SCORE_WEIGHTS.delay * 100)}% August 2026 departure-delay rate. Percentiles are computed only inside the airports being compared. A higher delay rate raises the score. It is operational pressure in this formula, not a verdict on the airport. An airport missing any input does not get a score, and the missing input is not filled in.`,
+      detail: `The capacity score is ${Math.round(SCORE_WEIGHTS.pressure * 100)}% departures per long runway, ${Math.round(SCORE_WEIGHTS.scale * 100)}% log of 2024 domestic enplanements, ${Math.round(SCORE_WEIGHTS.yoy * 100)}% FAA enplanement change, and ${Math.round(SCORE_WEIGHTS.delay * 100)}% August 2026 departure-delay rate. Percentiles use every joined airport that has all four inputs, including when the list is a state or region. A higher delay rate raises the score. It is operational pressure in this formula, not a verdict on the airport. An airport missing any input does not get a score, and the missing input is not filled in.`,
     },
     {
       label: "Not a profit estimate",
@@ -76,9 +76,12 @@ function sourceAssumptions(extra: Assumption[] = []): Assumption[] {
 }
 
 function placeName(states: string[] | null): string {
-  if (!states) return "the joined US set"
-  if (states.length === 6 && ["CT", "ME", "MA", "NH", "RI", "VT"].every((state) => states.includes(state))) {
-    return "New England"
+  if (!states) return "the joined US and territory set"
+  const key = [...states].sort().join(",")
+  for (const [name, members] of Object.entries(REGIONS)) {
+    if ([...members].sort().join(",") === key) {
+      return name.replace(/\b\w/g, (letter) => letter.toUpperCase())
+    }
   }
   if (states.length === 1) return stateLabel(states[0])
   return states.map(stateLabel).join(", ")
@@ -193,6 +196,19 @@ function airportRow(item: Scored, terminal: boolean): ResultRow {
     mail: airport.ntad?.mail ?? null,
     passengers: airport.ntad?.passengers ?? null,
     arrivals: airport.ntad?.arrivals ?? null,
+    elevation: airport.elevationFt,
+    carrierDelayMinutes: airport.ontime?.carrierDelayMinutes ?? null,
+    lateAircraftDelayMinutes: airport.ontime?.lateAircraftDelayMinutes ?? null,
+    nasDelayMinutes: airport.ontime?.nasDelayMinutes ?? null,
+    weatherDelayMinutes: airport.ontime?.weatherDelayMinutes ?? null,
+    securityDelayMinutes: airport.ontime?.securityDelayMinutes ?? null,
+    delayCauseMinutes: airport.ontime
+      ? airport.ontime.carrierDelayMinutes +
+        airport.ontime.lateAircraftDelayMinutes +
+        airport.ontime.nasDelayMinutes +
+        airport.ontime.weatherDelayMinutes +
+        airport.ontime.securityDelayMinutes
+      : null,
     meanDelayMinutes: airport.ontime?.meanDepDelayMinutes ?? null,
     taxiOut: airport.ontime?.meanTaxiOutMinutes ?? null,
     cancellationRate: airport.ontime?.cancellationRate ?? null,
@@ -212,18 +228,41 @@ const RANK_COLUMNS = [
   { key: "domesticEnplanements", label: "2024 domestic enplanements" },
 ]
 
-function rankReply(place: string, items: Scored[], terminal: boolean, limitNote: string): string {
+function rankReply(place: string, items: Scored[], terminal: boolean, limitNote: string, peers: number): string {
   const scored = items.filter((item) => item.score != null)
   const strong = items.filter((item) => item.strong)
-  const peers = scored.filter((item) => item.inputs!.enplanements >= STRONG_FLOOR)
+  const countLabel = scored.length === 1 ? "has" : "have"
   const terminalLine = terminal
     ? " You asked about a terminal. I cannot separate a terminal constraint from a runway constraint, because seats, gates, and load factor are not in the files I have. This is the capacity score only."
     : ""
   const strongLine =
     strong.length === 0
-      ? ` None are marked strong. A strong mark requires a score at or above the 75th percentile of the ${peers.length} airports here with at least ${formatNumber(STRONG_FLOOR)} domestic enplanements in 2024, and an FAA enplanement increase.`
-      : ` Marked strong: ${strong.map((item) => item.airport.iata).join(", ")}. That mark means the score is at or above the 75th percentile of the ${peers.length} airports here with at least ${formatNumber(STRONG_FLOOR)} domestic enplanements in 2024, and FAA enplanements rose.`
-  return `I ranked ${items.length} airports in ${place}. ${scored.length} have every score input, so percentiles are inside that group of ${scored.length}.${strongLine}${terminalLine}${limitNote}`
+      ? ` None in this list are marked strong. A strong mark requires a score at or above the 75th percentile of the ${peers} joined airports with at least ${formatNumber(STRONG_FLOOR)} domestic enplanements in 2024, and an FAA enplanement increase.`
+      : ` Marked strong: ${strong.map((item) => item.airport.iata).join(", ")}. That mark uses the national score: at or above the 75th percentile of the ${peers} joined airports with at least ${formatNumber(STRONG_FLOOR)} domestic enplanements in 2024, and FAA enplanements rose.`
+  return `I ranked ${items.length} airports in ${place} using the national capacity score. ${scored.length} ${countLabel} every score input. Asking for one of these airports on its own returns the same score.${strongLine}${terminalLine}${limitNote}`
+}
+
+let nationalCache: { catalog: Catalog; scored: Scored[] } | null = null
+
+function nationalScored(catalog: Catalog): Scored[] {
+  if (nationalCache?.catalog === catalog) return nationalCache.scored
+  const scored = scoreSet(filterAirports(catalog, null))
+  nationalCache = { catalog, scored }
+  return scored
+}
+
+function unscored(airport: Airport): Scored {
+  return {
+    airport,
+    inputs: null,
+    missing: missingScoreParts(airport),
+    pressurePercentile: null,
+    scalePercentile: null,
+    yoyPercentile: null,
+    delayPercentile: null,
+    score: null,
+    strong: false,
+  }
 }
 
 export function execute(catalog: Catalog, intent: Intent): QueryResult {
@@ -270,10 +309,15 @@ export function execute(catalog: Catalog, intent: Intent): QueryResult {
   }
 
   if (intent.kind === "compare") {
+    if (intent.metric === "delayCause") return delayCauseResult(catalog, intent.codes, intent.notes)
     if (intent.congestion || intent.metric === "delayRate" || intent.metric === "delayMinutes" || intent.metric === "taxiOut") {
       return congestionResult(catalog, intent.codes, intent.notes, intent.terminal)
     }
-    return compareMetric(catalog, intent.codes, intent.metric, intent.notes, intent.terminal)
+    return compareMetric(catalog, intent.codes, intent.metric, intent.notes, intent.terminal, intent.year)
+  }
+
+  if (intent.kind === "airport" && intent.metric === "delayCause") {
+    return airportMetric(catalog, intent.code, intent.metric, intent.notes, intent.year)
   }
 
   if (intent.kind === "airport" && intent.congestion && intent.metric === "delayRate") {
@@ -281,11 +325,11 @@ export function execute(catalog: Catalog, intent: Intent): QueryResult {
   }
 
   if (intent.kind === "airport") {
-    return airportMetric(catalog, intent.code, intent.metric, intent.notes)
+    return airportMetric(catalog, intent.code, intent.metric, intent.notes, intent.year)
   }
 
   if (intent.groupBy === "state" && intent.metric !== "score") {
-    return stateRollup(catalog, intent.states, intent.metric, intent.notes)
+    return stateRollup(catalog, intent.states, intent.metric, intent.notes, intent.year)
   }
 
   if (intent.groupBy === "state" && intent.metric === "score") {
@@ -302,8 +346,11 @@ export function execute(catalog: Catalog, intent: Intent): QueryResult {
     }
   }
 
+  const national = nationalScored(catalog)
+  const nationalPeers = national.filter((item) => item.inputs != null && item.inputs.enplanements >= STRONG_FLOOR).length
+  const byCode = new Map(national.map((item) => [item.airport.iata, item]))
   const pool = rankPool(catalog, intent.states)
-  let items = scoreSet(pool)
+  let items = pool.map((airport) => byCode.get(airport.iata) ?? unscored(airport))
   items.sort((a, b) => {
     if (a.score != null && b.score != null && a.score !== b.score) return b.score - a.score
     if (a.score != null && b.score == null) return -1
@@ -314,7 +361,7 @@ export function execute(catalog: Catalog, intent: Intent): QueryResult {
     return a.airport.iata.localeCompare(b.airport.iata)
   })
   if (intent.metric !== "score") {
-    items = sortByMetric(items, intent.metric)
+    items = sortByMetric(items, intent.metric, intent.year)
   }
   const ranked = items
   let shown = items
@@ -327,15 +374,15 @@ export function execute(catalog: Catalog, intent: Intent): QueryResult {
   const rows = shown.map((item) => airportRow(item, intent.terminal))
   const reply =
     intent.metric === "score"
-      ? rankReply(place, ranked, intent.terminal, limitNote)
-      : `I sorted ${ranked.length} airports in ${place} by ${metricLabel(intent.metric)}. Blank cells are not in the loaded files. I did not fill them.${limitNote}`
+      ? rankReply(place, ranked, intent.terminal, limitNote, nationalPeers)
+      : `I sorted ${ranked.length} airports in ${place} by ${metricLabel(intent.metric, intent.year)}. Blank cells are not in the loaded files. I did not fill them.${limitNote}`
 
   return {
-    title: intent.metric === "score" ? `Capacity rank, ${place}` : `${metricLabel(intent.metric)}, ${place}`,
+    title: intent.metric === "score" ? `Capacity rank, ${place}` : `${metricLabel(intent.metric, intent.year)}, ${place}`,
     reply,
     speechText: reply.split(". ").slice(0, 2).join(". "),
     refusal: false,
-    columns: intent.metric === "score" ? RANK_COLUMNS : metricColumns(intent.metric),
+    columns: intent.metric === "score" ? RANK_COLUMNS : metricColumns(intent.metric, intent.year),
     rows,
     assumptions: sourceAssumptions(
       catalog.unmatched.faa.length
@@ -351,7 +398,7 @@ export function execute(catalog: Catalog, intent: Intent): QueryResult {
   }
 }
 
-function sortByMetric(items: Scored[], metric: Metric): Scored[] {
+function sortByMetric(items: Scored[], metric: Metric, year?: number): Scored[] {
   const value = (item: Scored): number | null => {
     const airport = item.airport
     switch (metric) {
@@ -362,7 +409,15 @@ function sortByMetric(items: Scored[], metric: Metric): Scored[] {
       case "passengers":
         return airport.ntad?.passengers ?? null
       case "enplanements":
-        return airport.ntad?.enplanements ?? null
+        return year === 2023 ? (airport.faa?.enplanements2023 ?? null) : (airport.ntad?.enplanements ?? null)
+      case "delayCause":
+        return airport.ontime
+          ? airport.ontime.carrierDelayMinutes +
+              airport.ontime.lateAircraftDelayMinutes +
+              airport.ontime.nasDelayMinutes +
+              airport.ontime.weatherDelayMinutes +
+              airport.ontime.securityDelayMinutes
+          : null
       case "departures":
         return airport.ntad?.departures ?? null
       case "arrivals":
@@ -396,7 +451,8 @@ function sortByMetric(items: Scored[], metric: Metric): Scored[] {
   })
 }
 
-function metricLabel(metric: Metric): string {
+function metricLabel(metric: Metric, year?: number): string {
+  if (metric === "enplanements" && year === 2023) return "FAA commercial enplanements, 2023"
   const labels: Record<Metric, string> = {
     score: "capacity score",
     enplanements: "2024 domestic enplanements",
@@ -417,11 +473,17 @@ function metricLabel(metric: Metric): string {
   return labels[metric]
 }
 
-function metricColumns(metric: Metric) {
+function metricColumns(metric: Metric, year?: number) {
+  const key =
+    metric === "enplanements" && year === 2023
+      ? "faaEnplanements2023"
+      : metric === "enplanements"
+        ? "domesticEnplanements"
+        : metricKey(metric)
   return [
     { key: "airport", label: "Airport" },
     { key: "state", label: "State" },
-    { key: metric === "enplanements" ? "domesticEnplanements" : metricKey(metric), label: metricLabel(metric) },
+    { key, label: metricLabel(metric, year) },
   ]
 }
 
@@ -440,13 +502,13 @@ function metricKey(metric: Metric): string {
     taxiOut: "taxiOut",
     cancellationRate: "cancellationRate",
     longRunways: "longRunways",
-    delayCause: "carrierDelayMinutes",
+    delayCause: "delayCauseMinutes",
     elevation: "elevation",
   }
   return keys[metric]
 }
 
-function airportMetric(catalog: Catalog, code: string, metric: Metric, notes: string[]): QueryResult {
+function airportMetric(catalog: Catalog, code: string, metric: Metric, notes: string[], year?: number): QueryResult {
   const airport = catalog.airports[code]
   if (!airport) {
     const reason = `I don't have ${code} in the joined public files, so I can't answer that.`
@@ -496,7 +558,7 @@ function airportMetric(catalog: Catalog, code: string, metric: Metric, notes: st
       return refusalResult(reason, notes)
     }
     const ontime = airport.ontime
-    const reply = `August 2026 delay-cause minutes reported for domestic flights from ${code}: carrier ${formatNumber(ontime.carrierDelayMinutes)}, late aircraft ${formatNumber(ontime.lateAircraftDelayMinutes)}, national airspace ${formatNumber(ontime.nasDelayMinutes)}, weather ${formatNumber(ontime.weatherDelayMinutes)}, security ${formatNumber(ontime.securityDelayMinutes)}.`
+    const reply = `August 2026 delay-cause minutes reported for domestic flights from ${code}: carrier ${formatNumber(ontime.carrierDelayMinutes)}, late aircraft ${formatNumber(ontime.lateAircraftDelayMinutes)}, national airspace ${formatNumber(ontime.nasDelayMinutes)}, weather ${formatNumber(ontime.weatherDelayMinutes)}, security ${formatNumber(ontime.securityDelayMinutes)}. These are total minutes, not a share of delays.`
     return {
       title: `${code} delay causes`,
       reply,
@@ -513,6 +575,25 @@ function airportMetric(catalog: Catalog, code: string, metric: Metric, notes: st
         { cause: "WeatherDelay", minutes: ontime.weatherDelayMinutes },
         { cause: "SecurityDelay", minutes: ontime.securityDelayMinutes },
       ],
+      assumptions: sourceAssumptions(),
+      notes,
+    }
+  }
+
+  if (metric === "enplanements" && year === 2023) {
+    const faa = airport.faa?.enplanements2023
+    if (faa == null) return refusalResult(`I don't have FAA commercial enplanements for 2023 at ${code}.`, notes)
+    const reply = `${code}, ${airport.name}. FAA commercial-service enplanements in calendar year 2023 were ${formatNumber(faa)}. I don't have a 2023 domestic NTAD total.`
+    return {
+      title: `${code} 2023 enplanements`,
+      reply,
+      speechText: reply,
+      refusal: false,
+      columns: [
+        { key: "series", label: "Series" },
+        { key: "value", label: "Value" },
+      ],
+      rows: [{ series: "FAA CY 2023 commercial enplanements", value: faa }],
       assumptions: sourceAssumptions(),
       notes,
     }
@@ -615,12 +696,61 @@ function formatMetric(metric: Metric, value: number): string {
   return formatNumber(value)
 }
 
+function delayCauseResult(catalog: Catalog, codes: string[], notes: string[]): QueryResult {
+  const rows: ResultRow[] = []
+  const lines: string[] = []
+  for (const code of codes) {
+    const airport = catalog.airports[code]
+    if (!airport) {
+      lines.push(`I don't have ${code}.`)
+      continue
+    }
+    if (!airport.ontime) {
+      lines.push(`I don't have August 2026 delay-cause minutes for ${code}.`)
+      rows.push({ code, airport: airport.name, delayCauseMinutes: null })
+      continue
+    }
+    const ontime = airport.ontime
+    rows.push({
+      code,
+      airport: airport.name,
+      carrierDelayMinutes: ontime.carrierDelayMinutes,
+      lateAircraftDelayMinutes: ontime.lateAircraftDelayMinutes,
+      nasDelayMinutes: ontime.nasDelayMinutes,
+      weatherDelayMinutes: ontime.weatherDelayMinutes,
+      securityDelayMinutes: ontime.securityDelayMinutes,
+    })
+    lines.push(
+      `${code}: carrier ${formatNumber(ontime.carrierDelayMinutes)}, late aircraft ${formatNumber(ontime.lateAircraftDelayMinutes)}, national airspace ${formatNumber(ontime.nasDelayMinutes)}, weather ${formatNumber(ontime.weatherDelayMinutes)}, security ${formatNumber(ontime.securityDelayMinutes)}.`,
+    )
+  }
+  const reply = `${lines.join(" ")} These are total minutes, not a share of delays, so a larger airport can show more minutes without a higher delay rate.`
+  return {
+    title: `Delay causes, ${codes.join(" and ")}`,
+    reply,
+    speechText: lines.join(" "),
+    refusal: rows.length === 0,
+    columns: [
+      { key: "code", label: "Code" },
+      { key: "carrierDelayMinutes", label: "Carrier minutes" },
+      { key: "lateAircraftDelayMinutes", label: "Late aircraft minutes" },
+      { key: "nasDelayMinutes", label: "NAS minutes" },
+      { key: "weatherDelayMinutes", label: "Weather minutes" },
+      { key: "securityDelayMinutes", label: "Security minutes" },
+    ],
+    rows,
+    assumptions: sourceAssumptions(),
+    notes,
+  }
+}
+
 function compareMetric(
   catalog: Catalog,
   codes: string[],
   metric: Metric,
   notes: string[],
   terminal: boolean,
+  year?: number,
 ): QueryResult {
   if (metric === "score") {
     const scored = scoreSet(filterAirports(catalog, null)).filter((item) => codes.includes(item.airport.iata))
@@ -651,12 +781,12 @@ function compareMetric(
       lines.push(`I don't have ${code}.`)
       continue
     }
-    const value = metricValue(airport, metric)
+    const value = year === 2023 && metric === "enplanements" ? (airport.faa?.enplanements2023 ?? null) : metricValue(airport, metric)
     rows.push({ code, airport: airport.name, value })
-    lines.push(value == null ? `I don't have ${metricLabel(metric)} for ${code}.` : `${code} is ${formatMetric(metric, value)}.`)
+    lines.push(value == null ? `I don't have ${metricLabel(metric, year)} for ${code}.` : `${code} is ${formatMetric(metric, value)}.`)
   }
   return {
-    title: `${metricLabel(metric)}, ${codes.join(" and ")}`,
+    title: `${metricLabel(metric, year)}, ${codes.join(" and ")}`,
     reply: lines.join(" "),
     speechText: lines.join(" "),
     refusal: false,
@@ -700,7 +830,7 @@ function congestionResult(catalog: Catalog, codes: string[], notes: string[], te
       lines.push(`${code} has no August 2026 reporting-carrier delay rows.`)
     } else {
       lines.push(
-        `${code} delay rate ${formatRatio(ontime.depDelay15Rate ?? 0)}, mean delay ${formatNumber(ontime.meanDepDelayMinutes ?? 0, 1)} minutes, taxi-out ${formatNumber(ontime.meanTaxiOutMinutes ?? 0, 1)} minutes, cancellations ${formatRatio(ontime.cancellationRate ?? 0)}.`,
+        `${code} delay rate ${ontime.depDelay15Rate == null ? "not in the file" : formatRatio(ontime.depDelay15Rate)}, mean delay ${ontime.meanDepDelayMinutes == null ? "not in the file" : `${formatNumber(ontime.meanDepDelayMinutes, 1)} minutes`}, taxi-out ${ontime.meanTaxiOutMinutes == null ? "not in the file" : `${formatNumber(ontime.meanTaxiOutMinutes, 1)} minutes`}, cancellations ${ontime.cancellationRate == null ? "not in the file" : formatRatio(ontime.cancellationRate)}.`,
       )
     }
   }
@@ -726,11 +856,16 @@ function congestionResult(catalog: Catalog, codes: string[], notes: string[], te
   }
 }
 
-function stateRollup(catalog: Catalog, states: string[] | null, metric: Metric, notes: string[]): QueryResult {
+function stateRollup(catalog: Catalog, states: string[] | null, metric: Metric, notes: string[], year?: number): QueryResult {
   const airports = filterAirports(catalog, states)
   const totals = new Map<string, { value: number; count: number; missing: number }>()
   for (const airport of airports) {
-    const value = metric === "enplanements" ? airport.ntad?.enplanements : metricValue(airport, metric)
+    const value =
+      metric === "enplanements"
+        ? year === 2023
+          ? (airport.faa?.enplanements2023 ?? null)
+          : (airport.ntad?.enplanements ?? null)
+        : metricValue(airport, metric)
     const bucket = totals.get(airport.state) ?? { value: 0, count: 0, missing: 0 }
     if (value == null) bucket.missing += 1
     else {
@@ -747,9 +882,9 @@ function stateRollup(catalog: Catalog, states: string[] | null, metric: Metric, 
       missing: bucket.missing,
     }))
     .sort((a, b) => (b.value ?? -1) - (a.value ?? -1))
-  const reply = `I summed ${metricLabel(metric)} by state for airports that have the figure. Airports without it are counted as missing, not as zero.`
+  const reply = `I summed ${metricLabel(metric, year)} by state for airports that have the figure. Airports without it are counted as missing, not as zero.`
   return {
-    title: `${metricLabel(metric)} by state`,
+    title: `${metricLabel(metric, year)} by state`,
     reply,
     speechText: reply,
     refusal: false,
