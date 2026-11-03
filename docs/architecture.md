@@ -1,6 +1,6 @@
 # Sky Scout architecture
 
-Sky Scout answers from a joined catalog of public airport files. A question is turned into a fixed query, the query reads only that catalog, and the reply is written from the rows. A model is optional, and it cannot add a number.
+Sky Scout answers from a joined catalog of public airport files. A model reads the question, chooses which airports and metrics to measure, and writes which of them look promising. The measurements come from the catalog. The model cannot add a number the tools did not return.
 
 The catalog is OurAirports, NTAD T-100 domestic origin totals for 2024, FAA commercial-service enplanements for 2023 and 2024, and BTS reporting-carrier on-time performance for August 2026. The running server fetches those files on the first request and again every 6 hours. `data/snapshot/catalog.json` is the Nov 2, 2026 copy and is used only when no live fetch has succeeded. Tests read that snapshot and do not download.
 
@@ -19,7 +19,7 @@ Each input is converted to a percentile across every joined airport that has all
 
 The percentile pool is national. A state or region list looks up those same scores. Asking about one airport on its own returns the same score as the list.
 
-A separate mark, called strong, is not a fifth weight. It requires three things at once: 2024 domestic enplanements of at least 100,000, an FAA enplanement increase, and a capacity score at or above the 75th percentile of the scored airports that clear that enplanement floor. The reply states how many airports are in that peer set for the catalog that is loaded.
+A separate mark, called strong, is not a fifth weight. It requires three things at once: 2024 domestic enplanements of at least 100,000, an FAA enplanement increase, and a capacity score at or above the 75th percentile of the scored airports that clear that enplanement floor. The measured result states how many airports are in that peer set for the catalog that is loaded. The analyst may cite that mark. It still says, in its own words, which airports look promising.
 
 A higher delay rate raises the score. In this formula, delay is operational pressure. The score is not revenue, concession income, airline charges, construction cost, NPV, or IRR.
 
@@ -43,10 +43,10 @@ The same catalog is reused until the refresh interval. A failed refresh keeps th
 
 ## Where and how AI is used
 
-Understanding the question does not use a model. `lib/agent/parse.ts` matches airports, places, metrics, comparisons, and follow-ups with rules. If the question needs stage length, seats, unmet demand, carriers, routes, fares, or another field that was not loaded, the parser returns a refusal. The query engine then answers from the catalog or repeats that refusal. Both paths are deterministic.
+The analyst is a model. On each question, `lib/agent/analyst.ts` sends the conversation to the OpenAI chat completions API with tools over the loaded catalog. The model decides what is being asked, which airports are meant, and which of them look promising. The default model is `gpt-4o-mini`. `OPENAI_MODEL` replaces it. Temperature is 0, and each call gives up after 30 seconds. `OPENAI_API_KEY` is required. Without it, the desk says so and does not answer from the rules parser.
 
-Speech input and spoken replies use the browser’s speech recognition and speech synthesis. Audio is not uploaded. The desk does not choose the voice.
+The tools do the measuring. `find_airports` resolves a name, city, or code. `look_up` runs the fixed score and the other loaded metrics for the airports, states, or region the model chose. `decline` is how the model refuses a figure the files do not contain, such as seats, stage length, unmet demand, carriers, routes, fares, or construction cost. The strong flag is evidence the model can cite. It is not a substitute for the model's own judgment.
 
-A model is used in one place, and only after the rows exist. If `OPENAI_API_KEY` is set, `lib/agent/phrase.ts` sends the finished reply, the rows, and the assumptions to the OpenAI chat completions API. The default model is `gpt-4o-mini`. `OPENAI_MODEL` replaces it. Temperature is 0, and the call gives up after 8 seconds.
+Every number in the model's reply must already appear in a tool result or in the analyst instructions. If the reply adds a figure, the desk keeps the measured table and discards that wording. Speech input and spoken replies still use the browser’s speech recognition and speech synthesis. Audio is not uploaded, and the desk does not choose the voice.
 
-The instruction is to rewrite the reply in plain sentences and to use only numbers already present. The desk checks that every number in the model text already appears in the reply, the rows, or the assumptions. If the check fails, the call times out, or the API returns an error, the original reply is kept. Refusals are not sent to the model. With no API key, the original reply is what the desk shows.
+`lib/agent/parse.ts` remains in the project as the earlier rules matcher. The chat desk does not use it to decide an answer.

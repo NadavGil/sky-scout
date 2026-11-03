@@ -10,10 +10,10 @@ The scoring formula, the tradeoffs in that formula, and where a model is used ar
 
 ```bash
 npm install
-npm run dev
+OPENAI_API_KEY=your-key npm run dev
 ```
 
-Open [http://127.0.0.1:38471](http://127.0.0.1:38471).
+Open [http://127.0.0.1:38471](http://127.0.0.1:38471). The chat analyst needs `OPENAI_API_KEY`. `OPENAI_MODEL` chooses the model, and the default is `gpt-4o-mini`. Restart the server after setting the key.
 
 ```bash
 npm test
@@ -45,6 +45,16 @@ SKY_SCOUT_REFRESH_HOURS=1 npm run dev
 
 These files change slowly. A refresh can leave the airport figures the same and only move the read time. OurAirports changes from time to time. The FAA workbook and the 2024 traffic totals change rarely. The on-time file changes when the August 2026 month is revised.
 
+## The analyst
+
+A question goes to `POST /api/chat`. The model decides what is being asked, which airports are meant, and which of them look promising. It does that with tools over the loaded catalog, not with a rules parser.
+
+- `find_airports` resolves a name, city, or code.
+- `look_up` returns the capacity score and the other loaded metrics for the airports, states, or region the model chose.
+- `decline` refuses a figure the files do not contain.
+
+The last 12 turns of the session are sent with the next question. Every number in the reply must already appear in a tool result or in the analyst instructions. If the model adds a figure, the desk keeps the measured table and discards that wording. Without `OPENAI_API_KEY`, the desk says so and does not answer from the rules parser.
+
 ## What it can answer
 
 The desk joins:
@@ -72,5 +82,3 @@ The score is not revenue, cost, NPV, or a terminal-versus-runway diagnosis. Seat
 Stage length and long-haul share, seats, load factor, unmet demand, carriers, routes, international segments, fares, and construction cost. The BTS open-data API did not respond when these files were first collected, and the TranStats prezip directory had no T-100 segment file to replace it. The desk reads the August 2026 on-time zip instead.
 
 Voice input and spoken replies use the browser speech APIs. Audio is not uploaded. Speech recognition depends on the browser. The desk does not choose a voice, so the reader uses the system default.
-
-If `OPENAI_API_KEY` is set, a model may rephrase a finished answer. Any number that is not already in the result is discarded, and the original reply is kept. The desk still runs with no key.
