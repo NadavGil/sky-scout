@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { analyzeQuestion } from "@/lib/agent/analyst"
+import { AnalystModelError, analyzeQuestion, resetAnalystPause } from "@/lib/agent/analyst"
 import { getCatalog } from "@/lib/data/catalog"
 
 const catalog = getCatalog()
@@ -100,5 +100,63 @@ describe("analyst", () => {
     expect(result.refusal).toBe(true)
     expect(result.reply).toContain("OPENAI_API_KEY")
     expect(result.reply).toContain("rules parser")
+  })
+
+  it("answers from the loaded files when the model returns 429", async () => {
+    const previous = process.env.OPENAI_API_KEY
+    const originalFetch = globalThis.fetch
+    process.env.OPENAI_API_KEY = "test-key"
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return new Response("busy", { status: 429, headers: { "retry-after": "30" } })
+    }
+    try {
+      const first = await analyzeQuestion("How much freight moved through Anchorage in 2024?", catalog, [])
+      expect(first.refusal).toBe(false)
+      expect(first.reply).toContain("3,116,063,944")
+      expect(first.reply).not.toContain("returned 429")
+      expect(first.notes.join(" ")).toMatch(/rate-limited/)
+      expect(calls).toBe(1)
+
+      const second = await analyzeQuestion("How much freight moved through Anchorage in 2024?", catalog, [])
+      expect(second.reply).toContain("3,116,063,944")
+      expect(calls).toBe(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      if (previous == null) delete process.env.OPENAI_API_KEY
+      else process.env.OPENAI_API_KEY = previous
+      resetAnalystPause()
+    }
+  })
+
+  it("keeps a measured table when the model is rate-limited after the lookup", async () => {
+    let step = 0
+    const result = await analyzeQuestion("How much freight moved through Anchorage in 2024?", catalog, [], async () => {
+      step += 1
+      if (step === 1) {
+        return {
+          choices: [
+            {
+              message: {
+                content: "",
+                tool_calls: [
+                  {
+                    id: "call-freight",
+                    function: { name: "look_up", arguments: JSON.stringify({ codes: ["ANC"], metric: "freight" }) },
+                  },
+                ],
+              },
+            },
+          ],
+        }
+      }
+      throw new AnalystModelError(429, 30_000)
+    })
+    expect(result.refusal).toBe(false)
+    expect(result.reply).toContain("3,116,063,944")
+    expect(result.rows.length).toBeGreaterThan(0)
+    expect(result.notes.join(" ")).toMatch(/rate-limited/)
+    expect(result.reply).not.toContain("returned 429")
   })
 })

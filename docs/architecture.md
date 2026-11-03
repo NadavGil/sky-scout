@@ -45,6 +45,8 @@ The same catalog is reused until the refresh interval. A failed refresh keeps th
 
 The analyst is a model. On each question, `lib/agent/analyst.ts` sends the conversation to the OpenAI chat completions API with tools over the loaded catalog. The model decides what is being asked, which airports are meant, and which of them look promising. The default model is `gpt-4o-mini`. `OPENAI_MODEL` replaces it. Temperature is 0, and each call gives up after 30 seconds. `OPENAI_API_KEY` is required. Without it, the desk says so and does not answer from the rules parser.
 
+A 429 or 503 does not become the answer. The desk retries when the server asks for a wait of under two seconds. A longer rate limit keeps any table already measured, or otherwise runs the same question through the rules desk, and says the model was rate-limited. Model calls then pause for 20 to 60 seconds. Other HTTP errors are still reported as themselves.
+
 The tools do the measuring. `find_airports` resolves a name, city, or code. `look_up` runs the fixed score and the other loaded metrics for the airports, states, or region the model chose. `decline` is how the model refuses a figure the files do not contain, such as seats, stage length, unmet demand, carriers, routes, fares, or construction cost. The strong flag is evidence the model can cite. It is not a substitute for the model's own judgment.
 
 Every number in the model's reply must already appear in a tool result or in the analyst instructions. If the reply adds a figure, the desk keeps the measured table and discards that wording. Speech input and spoken replies still use the browser’s speech recognition and speech synthesis. Audio is not uploaded, and the desk does not choose the voice.

@@ -1,4 +1,5 @@
 import { modelTextStaysInside } from "@/lib/agent/phrase"
+import { interpret } from "@/lib/agent/parse"
 import { execute } from "@/lib/query/engine"
 import { REGIONS, STATE_ABBREVIATIONS } from "@/lib/regions"
 import type { Catalog, Intent, Metric, QueryResult } from "@/lib/types"
@@ -39,6 +40,40 @@ type CompletionMessage = {
 }
 
 export type ChatCompletion = (body: unknown) => Promise<{ choices?: Array<{ message?: CompletionMessage }> }>
+
+const SHORT_RETRY_MS = 1500
+const RATE_NOTE = "The analyst model was rate-limited, so this answer comes from the loaded files."
+
+let pausedUntil = 0
+
+export class AnalystModelError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfterMs: number,
+  ) {
+    super(status === 429 || status === 503 ? RATE_NOTE : `The analyst model returned ${status}.`)
+    this.name = "AnalystModelError"
+  }
+}
+
+export function resetAnalystPause() {
+  pausedUntil = 0
+}
+
+function retryDelayMs(response: Response): number {
+  const header = response.headers.get("retry-after")
+  if (!header) return 1000
+  const seconds = Number(header)
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
+  const when = Date.parse(header)
+  if (Number.isFinite(when)) return Math.max(0, when - Date.now())
+  return 1000
+}
+
+function isRateLimit(error: unknown): boolean {
+  if (error instanceof AnalystModelError) return error.status === 429 || error.status === 503
+  return error instanceof Error && /\breturned (429|503)\b|rate limit/i.test(error.message)
+}
 
 type LookUpArgs = {
   codes?: string[]
@@ -83,6 +118,12 @@ export async function analyzeQuestion(
         tools: TOOLS,
       })
     } catch (error) {
+      if (isRateLimit(error)) {
+        const note = error instanceof Error ? error.message : RATE_NOTE
+        if (measured) return { ...measured, notes: [...measured.notes, note] }
+        const filed = execute(catalog, interpret(asked, catalog, null))
+        return { ...filed, notes: [...filed.notes, RATE_NOTE] }
+      }
       const detail = error instanceof Error ? error.message : "The analyst model did not respond."
       if (measured) return { ...measured, notes: [...measured.notes, detail] }
       return refusal(detail)
@@ -309,15 +350,26 @@ const TOOLS = [
 ]
 
 async function openAiCompletion(body: unknown) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000),
-  })
-  if (!response.ok) throw new Error(`The analyst model returned ${response.status}.`)
+  if (Date.now() < pausedUntil) throw new AnalystModelError(429, pausedUntil - Date.now())
+  let response: Response | null = null
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (response.status !== 429 && response.status !== 503) break
+    const delay = retryDelayMs(response)
+    if (attempt === 2 || delay > SHORT_RETRY_MS) {
+      pausedUntil = Date.now() + Math.min(Math.max(delay, 20_000), 60_000)
+      throw new AnalystModelError(response.status, delay)
+    }
+    await new Promise((resolve) => setTimeout(resolve, delay))
+  }
+  if (!response || !response.ok) throw new AnalystModelError(response?.status ?? 500, 0)
   return (await response.json()) as { choices?: Array<{ message?: CompletionMessage }> }
 }

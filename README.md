@@ -55,6 +55,8 @@ A question goes to `POST /api/chat`. The model decides what is being asked, whic
 
 The last 12 turns of the session are sent with the next question. Every number in the reply must already appear in a tool result or in the analyst instructions. If the model adds a figure, the desk keeps the measured table and discards that wording. Without `OPENAI_API_KEY`, the desk says so and does not answer from the rules parser.
 
+If the model returns 429 or 503, the desk retries only when the suggested wait is under two seconds. Otherwise it answers from the rules desk over the same files and says the model was rate-limited. A table the model already retrieved is kept. Further model calls pause for at most a minute.
+
 ## What it can answer
 
 The desk joins:
