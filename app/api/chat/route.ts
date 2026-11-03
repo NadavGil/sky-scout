@@ -1,7 +1,7 @@
 import { interpret } from "@/lib/agent/parse"
 import { phraseFromRows } from "@/lib/agent/phrase"
 import { readSession, writeSession } from "@/lib/agent/session"
-import { getCatalog } from "@/lib/data/catalog"
+import { ensureFreshCatalog } from "@/lib/data/catalog"
 import { execute } from "@/lib/query/engine"
 
 export const runtime = "nodejs"
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   }
   const message = typeof body.message === "string" ? body.message.slice(0, 2000) : ""
   const sessionId = typeof body.sessionId === "string" && body.sessionId ? body.sessionId.slice(0, 80) : "desk"
-  const catalog = getCatalog()
+  const catalog = await ensureFreshCatalog()
   const previous = readSession(sessionId)
   const intent = interpret(message, catalog, previous)
   writeSession(sessionId, intent)

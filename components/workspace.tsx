@@ -72,7 +72,8 @@ function builtLabel(iso: string): string {
   }).format(date) + " Asia/Jerusalem"
 }
 
-export function Workspace({ summary }: { summary: Summary }) {
+export function Workspace({ summary: initialSummary }: { summary: Summary }) {
+  const [summary, setSummary] = useState(initialSummary)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
   const [loading, setLoading] = useState(false)
@@ -90,6 +91,23 @@ export function Workspace({ summary }: { summary: Summary }) {
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" })
   }, [messages, loading])
+
+  useEffect(() => {
+    let stopped = false
+    const pull = () => {
+      void fetch("/api/catalog")
+        .then((response) => (response.ok ? (response.json() as Promise<Summary>) : null))
+        .then((next) => {
+          if (!stopped && next?.builtAt) setSummary(next)
+        })
+        .catch(() => undefined)
+    }
+    const id = window.setInterval(pull, 60_000)
+    return () => {
+      stopped = true
+      window.clearInterval(id)
+    }
+  }, [])
 
   useEffect(() => {
     if (!speak || !latest?.answer) return

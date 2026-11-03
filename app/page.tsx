@@ -1,7 +1,9 @@
 import { Workspace } from "@/components/workspace"
-import { catalogSummary, getCatalog } from "@/lib/data/catalog"
+import { catalogSummary, ensureFreshCatalog } from "@/lib/data/catalog"
 
-export default function Page() {
-  const summary = catalogSummary(getCatalog())
+export const dynamic = "force-dynamic"
+
+export default async function Page() {
+  const summary = catalogSummary(await ensureFreshCatalog())
   return <Workspace summary={summary} />
 }
