@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sky Scout</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #122033;
+      --muted: #5d6d82;
+      --line: #e2e8f0;
+      --paper: #e7eef6;
+      --card: #ffffff;
+      --navy: #123252;
+      --navy-2: #0c243d;
+      --gold: #b45309;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      height: 100dvh;
+      overflow: hidden;
+      color: var(--ink);
+      font: 15px/1.5 "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(900px 280px at 10% -10%, rgba(18, 50, 82, 0.08), transparent 60%),
+        var(--paper);
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-areas: "brand status" "brand actions";
+      gap: 8px 24px;
+      align-items: center;
+      padding: 16px 28px;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .brand { grid-area: brand; display: flex; gap: 12px; align-items: center; min-width: 0; }
+    .mark {
+      width: 40px;
+      height: 40px;
+      flex: none;
+      border-radius: 12px;
+      background: var(--navy);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+    h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }
+    .lede { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    .header-actions { grid-area: actions; display: flex; gap: 8px; justify-self: end; }
+    #status { grid-area: status; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.35; text-align: right; max-width: 460px; justify-self: end; }
+    #thread {
+      flex: 1;
+      min-height: 0;
+      min-width: 0;
+      overflow: auto;
+      width: min(920px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 28px 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      -webkit-overflow-scrolling: touch;
+    }
+    #empty {
+      margin: 36px auto 0;
+      max-width: 640px;
+      text-align: center;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 36px 28px 28px;
+      box-shadow: 0 16px 40px rgba(18, 50, 82, 0.06);
+    }
+    #empty h2 { margin: 6px 0 8px; font-size: 28px; letter-spacing: -0.04em; }
+    #empty p { margin: 0 auto; max-width: 460px; color: var(--muted); }
+    .kicker { margin: 0; color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    .prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; }
+    .prompts button { background: #f4f7fb; color: var(--navy); border: 1px solid var(--line); }
+    article {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 18px 14px;
+      box-shadow: 0 10px 30px rgba(18, 50, 82, 0.05);
+      min-width: 0;
+      max-width: 100%;
+    }
+    article.user {
+      align-self: flex-end;
+      width: min(560px, 92%);
+      background: var(--navy);
+      color: #f7fbff;
+      border-color: transparent;
+      border-radius: 18px 18px 6px 18px;
+      padding: 12px 16px;
+    }
+    .who {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    article.user .who { color: #b9cbe0; margin-bottom: 4px; }
+    pre {
+      white-space: pre-wrap;
+      font: 15px/1.6 "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      margin: 0;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin: 0 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      -webkit-overflow-scrolling: touch;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    caption {
+      caption-side: top;
+      text-align: left;
+      padding: 12px 14px 0;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--navy);
+      font-weight: 750;
+    }
+    th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: #f8fafc;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td.score { font-weight: 750; color: var(--navy); }
+    tr.lead td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+    tbody tr:hover td { background: #f8fafc; }
+    .record { margin-top: 4px; }
+    .reason { margin: 0 0 10px; color: var(--ink); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips span {
+      background: #f4f7fb;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .chips b { color: var(--ink); font-weight: 700; margin-right: 4px; }
+    form {
+      padding: 0 20px max(16px, env(safe-area-inset-bottom));
+      background: linear-gradient(to top, var(--paper) 70%, transparent);
+    }
+    .dock {
+      width: min(920px, 100%);
+      margin: 0 auto;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 12px 32px rgba(18, 50, 82, 0.08);
+      padding: 10px;
+    }
+    .composer { display: flex; gap: 10px; align-items: flex-end; }
+    textarea {
+      flex: 1;
+      resize: vertical;
+      min-height: 52px;
+      max-height: 160px;
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 12px 8px;
+      font: 15px/1.45 "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: transparent;
+    }
+    textarea:focus { outline: none; }
+    .actions { display: flex; gap: 8px; }
+    button {
+      border: 0;
+      border-radius: 12px;
+      background: var(--navy);
+      color: white;
+      min-height: 40px;
+      padding: 0 16px;
+      font: 650 14px/1 "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    button.secondary { background: #fff; color: var(--navy); border: 1px solid var(--line); }
+    button.listening { background: #8c2f2f; color: #fff; border-color: #8c2f2f; }
+    button.read { margin-top: 8px; }
+    button:hover { background: var(--navy-2); }
+    button.secondary:hover, .prompts button:hover { background: #eef3f8; }
+    button.listening:hover { background: #732626; }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .hint { margin: 8px 4px 2px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 720px) {
+      header {
+        grid-template-columns: 1fr;
+        grid-template-areas: "brand" "actions" "status";
+        gap: 10px;
+        padding: 12px 14px 10px;
+      }
+      .lede { display: none; }
+      .mark { width: 36px; height: 36px; border-radius: 10px; }
+      h1 { font-size: 18px; }
+      .header-actions { justify-self: stretch; display: grid; grid-template-columns: 1fr 1fr; }
+      .header-actions button {
+        min-height: 44px;
+        padding: 8px 10px;
+        white-space: normal;
+        line-height: 1.2;
+        font-size: 13px;
+      }
+      #status {
+        justify-self: stretch;
+        text-align: left;
+        max-width: none;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      #thread { width: calc(100% - 20px); padding: 14px 0 8px; gap: 12px; }
+      #empty { margin-top: 4px; padding: 22px 16px 16px; border-radius: 16px; }
+      #empty h2 { font-size: 22px; }
+      .prompts { flex-direction: column; align-items: stretch; }
+      .prompts button { width: 100%; min-height: 44px; }
+      article { padding: 14px 12px 12px; border-radius: 16px; }
+      article.user { width: 100%; }
+      th, td { padding: 10px 8px; }
+      th { letter-spacing: 0.03em; }
+      th.num { white-space: normal; line-height: 1.25; }
+      td:not(.num) { max-width: 40vw; }
+      caption { padding: 10px 10px 0; }
+      form { padding: 0 10px max(10px, env(safe-area-inset-bottom)); }
+      .dock { border-radius: 16px; padding: 8px; }
+      .composer { flex-direction: column; align-items: stretch; gap: 8px; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .actions button, button.read { min-height: 44px; }
+      textarea { font-size: 16px; min-height: 44px; padding: 10px 10px 6px; }
+      .hint { font-size: 11px; line-height: 1.35; }
+      .chips span { line-height: 1.35; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">S</div>
+      <div>
+        <h1>Sky Scout</h1>
+        <p class="lede">U.S. airport renovation screening</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button type="button" class="secondary" id="new-chat">New chat</button>
+      <button type="button" class="secondary" id="voice-answers" aria-pressed="false">Answers are silent</button>
+    </div>
+    <p id="status"></p>
+  </header>
+  <main id="thread">
+    <div id="empty">
+      <p class="kicker">Start a screening</p>
+      <h2>Which airports are worth a closer look?</h2>
+      <p>Scores come from the data on file. A missing fact stays missing.</p>
+      <div class="prompts">
+        <button type="button" data-prompt="Which airports in New England are strong candidates for terminal expansion?">New England terminals</button>
+        <button type="button" data-prompt="Compare LA and Santa Ana airport congestion levels.">LA and Santa Ana</button>
+        <button type="button" data-prompt="What is the percentage of long haul flights out of Anchorage airport?">Anchorage long-haul</button>
+        <button type="button" data-prompt="What is the unmet flight demand in SFO airport and why?">SFO unmet demand</button>
+      </div>
+    </div>
+  </main>
+  <form id="composer">
+    <div class="dock">
+      <div class="composer">
+        <textarea id="question" placeholder="Ask about a region, a comparison, or one airport"></textarea>
+        <div class="actions">
+          <button type="button" class="secondary" id="record" aria-pressed="false">Record</button>
+          <button type="submit" id="send">Send</button>
+        </div>
+      </div>
+      <p class="hint">Enter sends. Shift+Enter adds a line. Record speaks the question into the chat.</p>
+    </div>
+  </form>
+  <script>
+    const thread = document.querySelector("#thread");
+    const empty = document.querySelector("#empty");
+    const form = document.querySelector("#composer");
+    const question = document.querySelector("#question");
+    const status = document.querySelector("#status");
+    const send = document.querySelector("#send");
+    const newChat = document.querySelector("#new-chat");
+    const record = document.querySelector("#record");
+    const voiceAnswers = document.querySelector("#voice-answers");
+    const SpeechApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let conversationId = null;
+    let requestToken = 0;
+    let recognition = null;
+    let listening = false;
+    let discardRecording = false;
+    let readAnswers = sessionStorage.getItem("sky-scout-read") === "on";
+
+    voiceAnswers.setAttribute("aria-pressed", readAnswers ? "true" : "false");
+    voiceAnswers.textContent = readAnswers ? "Read answers" : "Answers are silent";
+    if (!SpeechApi) {
+      record.disabled = true;
+      record.title = "This browser has no speech recognition.";
+    }
+
+    function add(role, text, result) {
+      empty.hidden = true;
+      const article = document.createElement("article");
+      article.className = role;
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = role === "user" ? "You" : "Sky Scout";
+      const body = document.createElement("pre");
+      body.textContent = text;
+      article.append(who);
+      const tables = result ? dataTables(result) : null;
+      if (tables) article.append(tables);
+      else article.append(body);
+      if (result) article.append(facts(result));
+      thread.append(article);
+      if (role === "assistant") {
+        const spoken = spokenAnswer(article);
+        const replay = document.createElement("button");
+        replay.type = "button";
+        replay.className = "secondary read";
+        replay.textContent = "Read aloud";
+        replay.addEventListener("click", () => speak(spoken));
+        article.append(replay);
+        if (readAnswers) speak(spoken);
+      }
+      article.scrollIntoView({block: "nearest"});
+    }
+
+    function spokenAnswer(article) {
+      const sentences = [];
+      article.querySelectorAll("pre, table, .reason, .chips").forEach((node) => {
+        if (node.tagName === "TABLE") {
+          const caption = node.querySelector("caption");
+          if (caption && caption.textContent.trim()) sentences.push(`${caption.textContent.trim()}.`);
+          const headers = [...node.querySelectorAll("thead th")].map((cell) => cell.textContent.trim());
+          node.querySelectorAll("tbody tr").forEach((row) => {
+            const bits = [];
+            [...row.children].forEach((cell, index) => {
+              const value = cell.textContent.trim();
+              if (!value) return;
+              const label = headers[index] || "";
+              bits.push(label === "#" || label === "Airport" ? value : `${label} ${value}`);
+            });
+            if (bits.length) sentences.push(`${bits.join(", ")}.`);
+          });
+          return;
+        }
+        if (node.classList.contains("chips")) {
+          node.querySelectorAll("span").forEach((chip) => {
+            const label = chip.querySelector("b");
+            const name = label ? label.textContent.trim() : "";
+            const value = chip.textContent.slice(name.length).trim();
+            if (name && value) sentences.push(`${name}: ${value}.`);
+          });
+          return;
+        }
+        const text = node.innerText.replace(/\s+/g, " ").trim();
+        if (text) sentences.push(text.endsWith(".") ? text : `${text}.`);
+      });
+      return sentences.join(" ");
+    }
+
+    function speak(text) {
+      if (!window.speechSynthesis || !text) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function stopVoice() {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (recognition && listening) {
+        discardRecording = true;
+        recognition.stop();
+      }
+    }
+
+    function score(value) {
+      if (value == null || value === "" || Number.isNaN(Number(value))) return "";
+      return Number(value).toFixed(1);
+    }
+
+    function airportCode(item) {
+      return item.iata || item.faa_lid || "";
+    }
+
+    function dataTable(caption, headers, rows) {
+      if (!rows.length) return null;
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      const grid = document.createElement("table");
+      const cap = document.createElement("caption");
+      cap.textContent = caption;
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      headers.forEach((header) => {
+        const cell = document.createElement("th");
+        cell.textContent = header.label;
+        if (header.numeric) cell.className = "num";
+        headRow.append(cell);
+      });
+      head.append(headRow);
+      const body = document.createElement("tbody");
+      rows.forEach((row) => {
+        const line = document.createElement("tr");
+        if (Number(row.rank) > 0 && Number(row.rank) <= 3) line.className = "lead";
+        headers.forEach((header) => {
+          const cell = document.createElement("td");
+          cell.textContent = row[header.key] == null ? "" : String(row[header.key]);
+          cell.className = [header.numeric ? "num" : "", header.score ? "score" : ""].filter(Boolean).join(" ");
+          line.append(cell);
+        });
+        body.append(line);
+      });
+      grid.append(cap, head, body);
+      wrap.append(grid);
+      return wrap;
+    }
+
+    function dataTables(result) {
+      const holder = document.createElement("div");
+      const airports = Array.isArray(result.airports) ? result.airports : [];
+      const ranked = (result.ranked || []).filter((item) => item.opportunity_score != null);
+      if (ranked.length) {
+        holder.append(dataTable("Opportunity rank", [
+          {key: "rank", label: "#", numeric: true},
+          {key: "name", label: "Airport"},
+          {key: "code", label: "Code"},
+          {key: "demand", label: "D", numeric: true},
+          {key: "capacity", label: "C", numeric: true},
+          {key: "renovation", label: "R", numeric: true},
+          {key: "score", label: "S", numeric: true, score: true}
+        ], ranked.map((item, index) => ({
+          rank: String(index + 1),
+          name: item.name,
+          code: airportCode(item),
+          demand: score(item.demand_score),
+          capacity: score(item.capacity_score),
+          renovation: score(item.renovation_fit),
+          score: score(item.opportunity_score)
+        }))));
+      }
+      const growth = airports
+        .filter((item) => item.demand_score != null && item.opportunity_score == null)
+        .sort((left, right) => right.demand_score - left.demand_score);
+      if (growth.length) {
+        holder.append(dataTable("Passenger growth · " + growth.length + " airports", [
+          {key: "rank", label: "#", numeric: true},
+          {key: "name", label: "Airport"},
+          {key: "code", label: "Code"},
+          {key: "score", label: "Demand score", numeric: true, score: true}
+        ], growth.map((item, index) => ({
+          rank: String(index + 1),
+          name: item.name,
+          code: airportCode(item),
+          score: score(item.demand_score)
+        }))));
+      }
+      const missing = airports.filter((item) => item.classification === "insufficient_data");
+      if (missing.length) {
+        holder.append(dataTable("Insufficient data", [
+          {key: "name", label: "Airport"},
+          {key: "code", label: "Code"},
+          {key: "reason", label: "Reason"}
+        ], missing.map((item) => ({
+          name: item.name,
+          code: airportCode(item),
+          reason: item.reason || ""
+        }))));
+      }
+      if (Array.isArray(result.sides) && result.sides.length) {
+        holder.append(dataTable("Asked periods", [
+          {key: "name", label: "Airport"},
+          {key: "period", label: "Period"},
+          {key: "enplanements", label: "FAA enplanements"},
+          {key: "delay", label: "BTS arrival delay"},
+          {key: "retrieved", label: "Retrieved"}
+        ], result.sides.map((item) => ({
+          name: item.name,
+          period: item.period,
+          enplanements: item.enplanements_label,
+          delay: item.delay_label,
+          retrieved: item.retrieved_label
+        }))));
+      }
+      const delays = (result.values || []).filter((item) => item.arrival_delay_share != null);
+      if (delays.length) {
+        holder.append(dataTable("Congestion", [
+          {key: "name", label: "Airport"},
+          {key: "share", label: "Arrivals delayed 15 minutes or more", numeric: true},
+          {key: "mean", label: "Mean delay (minutes)", numeric: true}
+        ], delays.map((item) => ({
+          name: item.name,
+          share: score(item.arrival_delay_share * 100) + "%",
+          mean: score(item.arrival_delay_mean_minutes)
+        }))));
+      }
+      return holder.childElementCount ? holder : null;
+    }
+
+    function facts(result) {
+      const wrap = document.createElement("div");
+      wrap.className = "record";
+      if (result.reason && result.function !== "brief" && result.function !== "method") {
+        const reason = document.createElement("p");
+        reason.className = "reason";
+        reason.textContent = result.reason;
+        wrap.append(reason);
+      }
+      const chips = document.createElement("div");
+      chips.className = "chips";
+      const airport = result.airport && result.airport.name;
+      const manyAirports = (result.airports || []).length > 3;
+      const compared = (result.airports || []).map((item) => item.name).filter(Boolean).join(", ");
+      const rows = [
+        ["Status", result.status],
+        ["Region", result.region],
+        ["Project", result.project_type],
+        ["Airport", manyAirports ? null : (airport || compared)],
+        ["Period", result.period && result.period.label],
+        ["Words", result.word_count],
+        ["Percentage", result.percentage == null ? null : Number(result.percentage).toFixed(1)],
+        ["Missing", Array.isArray(result.missing) ? result.missing.join(", ") : null],
+        ["Profitability", result.profitability && result.profitability.claimed ? "claimed" : "not claimed"]
+      ];
+      rows.forEach(([label, value]) => {
+        if (value === undefined || value === null || value === "" || Number.isNaN(value)) return;
+        const chip = document.createElement("span");
+        const name = document.createElement("b");
+        name.textContent = label;
+        chip.append(name, document.createTextNode(String(value)));
+        chips.append(chip);
+      });
+      if (chips.childElementCount) wrap.append(chips);
+      return wrap;
+    }
+
+    function describe(health) {
+      const base = health.gemini_configured
+        ? "Gemini routes the question. The scoring module writes the answer. Questions sent to Gemini may be used to improve Google's products."
+        : "No Gemini key is set. The scoring module writes the answer.";
+      return health.datasets === "loading"
+        ? base + " Passenger and delay files are still loading."
+        : base;
+    }
+
+    function watchHealth() {
+      fetch("/health").then((response) => response.json()).then((health) => {
+        status.textContent = describe(health);
+        if (health.datasets === "loading") setTimeout(watchHealth, 4000);
+      });
+    }
+
+    async function startConversation() {
+      stopVoice();
+      requestToken += 1;
+      conversationId = null;
+      thread.replaceChildren(empty);
+      empty.hidden = false;
+      question.value = "";
+      send.disabled = true;
+      newChat.disabled = true;
+      try {
+        const response = await fetch("/conversations", {method: "POST"});
+        const body = await response.json();
+        conversationId = body.id;
+      } finally {
+        send.disabled = false;
+        newChat.disabled = false;
+        question.focus();
+      }
+    }
+
+    function setListening(on) {
+      listening = on;
+      record.textContent = on ? "Stop" : "Record";
+      record.classList.toggle("listening", on);
+      record.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+
+    if (window.visualViewport) {
+      const fitViewport = () => {
+        document.body.style.height = `${window.visualViewport.height}px`;
+      };
+      visualViewport.addEventListener("resize", fitViewport);
+      visualViewport.addEventListener("scroll", fitViewport);
+      fitViewport();
+    }
+    watchHealth();
+    startConversation();
+    newChat.addEventListener("click", startConversation);
+    document.querySelectorAll("[data-prompt]").forEach((button) => {
+      button.addEventListener("click", () => {
+        question.value = button.dataset.prompt;
+        form.requestSubmit();
+      });
+    });
+    voiceAnswers.addEventListener("click", () => {
+      readAnswers = !readAnswers;
+      sessionStorage.setItem("sky-scout-read", readAnswers ? "on" : "off");
+      voiceAnswers.setAttribute("aria-pressed", readAnswers ? "true" : "false");
+      voiceAnswers.textContent = readAnswers ? "Read answers" : "Answers are silent";
+      if (!readAnswers) stopVoice();
+    });
+    record.addEventListener("click", () => {
+      if (!SpeechApi) return;
+      if (listening) {
+        recognition.stop();
+        return;
+      }
+      if (send.disabled) return;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      discardRecording = false;
+      recognition = new SpeechApi();
+      recognition.lang = "en-US";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.onresult = (event) => {
+        let spoken = "";
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          spoken += event.results[index][0].transcript;
+        }
+        question.value = spoken.trim();
+      };
+      recognition.onerror = () => setListening(false);
+      recognition.onend = () => {
+        setListening(false);
+        const spoken = question.value.trim();
+        if (!discardRecording && spoken) form.requestSubmit();
+        discardRecording = false;
+      };
+      recognition.start();
+      setListening(true);
+    });
+
+    question.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = question.value.trim();
+      if (!text || !conversationId) return;
+      const token = requestToken;
+      const conversation = conversationId;
+      question.value = "";
+      add("user", text);
+      send.disabled = true;
+      try {
+        const response = await fetch(`/conversations/${conversation}/messages`, {
+          method: "POST",
+          headers: {"content-type": "application/json"},
+          body: JSON.stringify({content: text})
+        });
+        const body = await response.json();
+        if (token !== requestToken) return;
+        if (!response.ok) {
+          add("assistant", body.detail || "The question could not be answered.");
+          return;
+        }
+        add("assistant", body.reply, body.result);
+      } finally {
+        if (token === requestToken) {
+          send.disabled = false;
+          question.focus();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

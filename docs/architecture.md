@@ -1,54 +1,92 @@
-# Sky Scout architecture
+# Sky Scout design
 
-Sky Scout answers from a joined catalog of public airport files. A model reads the question, chooses which airports and metrics to measure, and writes which of them look promising. The measurements come from the catalog. The model cannot add a number the tools did not return.
+Sky Scout screens U.S. airports for renovation questions. Public files sit in SQLite. Python computes every figure. The chat explains that result. A missing fact stays missing.
 
-The catalog is OurAirports, NTAD T-100 domestic origin totals for 2024, FAA commercial-service enplanements for 2023 and 2024, and BTS reporting-carrier on-time performance for August 2026. The running server fetches those files on the first request and again every 6 hours. `data/snapshot/catalog.json` is the Nov 2, 2026 copy and is used only when no live fetch has succeeded. Tests read that snapshot and do not download.
+The method is the ranking skill at `.cursor/skills/us-airport-renovation-opportunity-ranking/SKILL.md`, copied verbatim. This note describes how the program applies that skill. It does not replace it.
 
-## Scoring methodology
+## 1. Scoring methodology
 
-An airport is scored only when all four inputs are present. A missing input is not filled in, and that airport has no score.
+Territory on every ranking answer is U.S. states and the District of Columbia. Territories are excluded. The peer set for a screen is scheduled commercial-service airports in the named Census states. New England is Connecticut, Maine, Massachusetts, New Hampshire, Rhode Island, and Vermont.
 
-| Weight | Input | Definition |
-| --- | --- | --- |
-| 32% | Runway pressure | 2024 domestic departures divided by paved runways of at least 5,000 feet that OurAirports does not list as closed. A blank or unrecognized surface does not count. |
-| 24% | Scale | Natural log of 2024 domestic enplanements from the NTAD T-100 origin table. |
-| 24% | Change | FAA commercial enplanements in calendar 2024 divided by calendar 2023, minus one. |
-| 20% | Delay | Share of operated August 2026 reporting-carrier departures delayed at least 15 minutes. |
+Four scores follow the skill. A rank exists only when D, C, and R are all present for one airport and one project.
 
-Each input is converted to a percentile across every joined airport that has all four inputs. Ties share the average rank. The percentile runs from 0 for the lowest value to 100 for the highest. The capacity score is the weighted sum of those four percentiles, so it also runs from 0 to 100.
+**Demand, D.** Six comparable annual FAA enplanement years, and a cohort of at least two airports. The window is the latest year on file and the five years before it. Inside that cohort, each component is turned into a 0–100 score by ascending average rank. Ties share the average rank. The weakest peer scores 0.
 
-The percentile pool is national. A state or region list looks up those same scores. Asking about one airport on its own returns the same score as the list.
+D = 0.40 long-term growth + 0.25 recent growth + 0.20 absolute increase + 0.15 growth consistency.
 
-A separate mark, called strong, is not a fifth weight. It requires three things at once: 2024 domestic enplanements of at least 100,000, an FAA enplanement increase, and a capacity score at or above the 75th percentile of the scored airports that clear that enplanement floor. The measured result states how many airports are in that peer set for the catalog that is loaded. The analyst may cite that mark. It still says, in its own words, which airports look promising.
+Long-term growth is the compound annual rate over the five intervals. Recent growth is the latest year against the year before it. Absolute increase is the change in boardings across the window. Consistency is the share of year-to-year increases. Weights are design assumptions. There is no reduced model when a year is missing. Fewer than six years means that airport is insufficient data.
 
-A higher delay rate raises the score. In this formula, delay is operational pressure. The score is not revenue, concession income, airline charges, construction cost, NPV, or IRR.
+**Capacity pressure, C.** A number from 0 to 100 only when the airport has a stored capacity-pressure observation with a written coverage note, or an analyst line `capacity mapping: 80 | the written note` for that airport. An observation wins if both exist. Delays, runway count, runway length, and annual traffic do not become C.
 
-## Key tradeoffs
+**Renovation fit, R.** 50 only when that airport has both an analyst bottleneck and an analyst intervention. That is suggestive evidence. It is not a documented 75 or 100. If the message names more than one airport code, the note is not attached.
 
-The score is a fixed formula, not a model fit to investment outcomes. The weights do not change when the question changes, and they are not learned from the files. That keeps two analysts on the same catalog at the same number. It also means the weights are a judgment, not a measured effect.
+**Opportunity, S.** For an eligible pair:
 
-Missing data drops the airport instead of imputing a runway, a delay rate, or an enplanement change. The ranking is then only among airports the files can describe. Airports with a real gap in one file disappear from the score rather than appearing with a guessed input.
+S = 100 × (D/100)^0.40 × (C/100)^0.35 × (R/100)^0.25
 
-Delay counts upward. A congested airport can outrank a quieter one with the same traffic and runways. The desk says this in the assumptions. It does not treat a high score as evidence that the airport runs well.
+S is not a probability, a return, or a forecast of new passengers. Confidence stays low and is not multiplied into S. Incremental passengers and movements stay unknown unless a real capacity and demand pair is on file. Profitability is claimed only when a complete analyst cash-flow schedule is present: discount rate, currency, inflation convention, investor perspective, and each year of aeronautical revenue, non-aeronautical revenue, operating costs, taxes, capex, and working capital. NPV discounts each year's free cash flow from the first year. A project cost alone does not claim profitability.
 
-NTAD enplanements and FAA enplanements are different series. Scale uses the domestic T-100 origin total. The year-over-year term uses FAA commercial-service enplanements, which include traffic the domestic origin table does not. The two are not reconciled into one passenger number.
+If passenger history exists and C or R does not, the airport stays on a demand-growth watchlist. The watchlist is ordered by D. It is not a rank.
 
-Delay is one month, August 2026, for domestic reporting carriers. A single month can move the score, and it says nothing about other months or about international flights. Freight, mail, passengers, and departures are 2024 annual domestic totals. The score mixes that year with one later month of delay.
+Three other measured questions use the same store and do not produce S:
 
-The desk will not turn the score into a terminal-versus-runway diagnosis. Seats, gates, and load factor are not in the files. A question that says “terminal” still gets the capacity score, plus an explicit note that the terminal constraint was not measured.
+- **Congestion** is the BTS reporting-carrier share of arrivals delayed at least 15 minutes, plus the mean delay minutes, for one complete month. "LA" resolves to LAX and "Santa Ana" to SNA. Other scheduled commercial airports in that city are named and left out. A live aircraft count is not congestion. If each airport is given its own year, FAA boardings and the loaded delay months are reported separately and are not averaged into one ranking.
+- **Long-haul share** is departures whose destination is at least 3,000 statute miles away, divided by geocoded departures. Unknown destinations are excluded. A year uses BTS T-100. One calendar day uses a stored OpenSky departure list and is labeled as a one-day sample.
+- **Unmet demand** is unconstrained demand minus effective capacity for the same period and the same traffic definition. The function returns unknown and names whichever of those two inputs is missing. Growth, delay, and served traffic do not fill the gap.
 
-Unmatched FAA codes are omitted. The loader does not guess that a code is a nearby airport. Four known collisions are merged by a fixed map, because the FAA id had been attached to a foreign field that reused the code: SAW to MQT, GRO to ROP, TNI to TIQ, and GSN to SPN. On the Nov 2 snapshot and the Nov 3 fetch, PBI was the FAA code left unmatched.
+A recap and a bottleneck-evidence question do not calculate a new score. The recap repeats the previous scored answer, or, when the chat has none, the coverage and rules on file. The evidence question states how a terminal, runway, or airspace bottleneck would have to be shown before C can be assigned.
 
-The same catalog is reused until the refresh interval. A failed refresh keeps the last successful catalog. Numbers can change after a refresh when the public files change, which is why the Nov 2 desk and the Nov 3 desk do not return the same lists.
+## 2. Key tradeoffs
 
-## Where and how AI is used
+**Python writes the numbers.** Gemini only chooses the tool. A second model pass that rewrote the explanation was left out, so a fluent paragraph cannot replace a missing input or round a score on its own. The cost is that the prose is fixed by `explain_locally` and will not restyle itself for each reader.
 
-The analyst is a model. On each question, `lib/agent/analyst.ts` sends the conversation to the OpenAI chat completions API with tools over the loaded catalog. The model decides what is being asked, which airports are meant, and which of them look promising. The default model is `gpt-4o-mini`. `OPENAI_MODEL` replaces it. Temperature is 0, and each call gives up after 30 seconds. `OPENAI_API_KEY` is required. Without it, the desk says so and does not answer from the rules parser.
+**Unknown stays unknown.** The skill forbids a reduced demand model, a capacity score inferred from delays or runways, and an unmet-demand figure built from enplanements, load factor, or delay. The product therefore refuses some questions that a reader might expect to have a number. SFO unmet demand is the standing case: the two required inputs are not in any loaded file.
 
-A 429 or 503 does not become the answer. The desk retries when the server asks for a wait of under two seconds. A longer rate limit keeps any table already measured, or otherwise runs the same question through the rules desk, and says the model was rate-limited. Model calls then pause for 20 to 60 seconds. Other HTTP errors are still reported as themselves.
+**One process and one SQLite file.** The catalog, observations, chats, and analyst notes share `data/sky-scout.db`. That keeps a laptop deployment small. A second writer against the same file will wait on the database lock. Public downloads run in the background after startup so the site opens while files arrive. A question scores whatever is already stored.
 
-The tools do the measuring. `find_airports` resolves a name, city, or code. `look_up` runs the fixed score and the other loaded metrics for the airports, states, or region the model chose. `decline` is how the model refuses a figure the files do not contain, such as seats, stage length, unmet demand, carriers, routes, fares, or construction cost. The strong flag is evidence the model can cite. It is not a substitute for the model's own judgment.
+**Analyst text can finish C and R, and it is labeled as analyst text.** A capacity mapping and a bottleneck-plus-intervention pair can complete a rank. They are never copied into observations as measured API data. R stops at 50 for that kind of note. Project costs and cash-flow schedules stay on the conversation. By default they are removed from the text sent to Gemini. NPV can still be computed locally from a complete schedule.
 
-Every number in the model's reply must already appear in a tool result or in the analyst instructions. If the reply adds a figure, the desk keeps the measured table and discards that wording. Speech input and spoken replies still use the browser’s speech recognition and speech synthesis. Audio is not uploaded, and the desk does not choose the voice.
+**Identifiers are not merged.** An OurAirports ident, an ICAO code, an IATA code, an FAA location id, and a BTS code can refer to the same airport only through an explicit mapping. FAA boardings are matched on the FAA location id. That drops some rows that a looser join would have kept, and it avoids assigning one airport's passengers to another.
 
-`lib/agent/parse.ts` remains in the project as the earlier rules matcher. The chat desk does not use it to decide an answer.
+**Congestion is one month.** Comparing "last year" with "this year" does not invent an annual delay rate. Each side shows the annual boardings on file and the delay months on file. The comparison is honest and it is not a single ranking.
+
+## 3. Where AI is used
+
+AI is used in one place: routing.
+
+When `GEMINI_API_KEY` is set, Gemini 3.8 Flash receives the conversation at temperature 0 and may call one tool: `screen`, `compare`, `share`, `gap`, `brief`, or `method`. It has no web search and no calculator. If that model is unavailable, the client tries `gemini-3.5-flash-lite` and then `gemini-flash-lite-latest`. If the call times out, cannot be reached, or returns 404, 500, 503, or 504, a local router picks the tool from the wording. With no key, the local router is used from the start.
+
+A few questions are routed in Python before Gemini sees them: a request to summarize the recommendation, a question about how a terminal bottleneck differs from a runway or airspace bottleneck, and a comparison that names a different period for each airport.
+
+The model does not compute D, C, R, S, a delay percentage, a long-haul share, an unmet-demand number, or an NPV. After the tool returns JSON, `explain_locally` writes the sentences on the screen. Read aloud is the browser's speech API reading that card. It does not call a model.
+
+Cursor can call the same functions through the MCP server. Cursor's own model talks to the user. The MCP tools return the scoring JSON. They do not let the model invent a rank.
+
+Project-cost amounts and cash-flow schedules are withheld from Gemini unless `ALLOW_PROJECT_COSTS_TO_MODEL=true`. Bottleneck notes, intervention notes, and capacity mappings are part of the question text the router sees.
+
+## 4. How the program was built
+
+Each part was built for one job, then the next part called it. The order was the data store, the skill, the scoring agent, and the chat application.
+
+**Data fetch.** The first phase stored public data and served it over HTTP, with no ranking and no chat. OurAirports supplies the catalog and the identifier schemes. OpenSky supplies a short-lived aircraft count near one airport, and arrivals or departures when credentials are set. Aviation Weather supplies METAR and TAF, marked as context only. Later, the same observation tables gained FAA annual enplanements, BTS on-time arrival delay, and BTS T-100 segments, because demand, congestion, and long-haul share need those files. Downloads are skipped when that source URL is already stored. A failed download keeps the last good rows.
+
+**Skill.** The ranking skill was copied into the repo verbatim and left as the method. Scoring code implements its eligibility rules, weights, and refusals. The skill text is not paraphrased into a second policy.
+
+**Agent.** The scoring module is the agent that owns the numbers: `screen`, `compare`, `share`, and `gap`, plus a recap and the bottleneck-evidence note. Analyst evidence, capacity mapping, and NPV were added here so a rank and a profitability claim can be completed from what an analyst types, under the skill's limits. Gemini, and the local router behind it, only select which function runs. The MCP server is a second door to those same functions for Cursor.
+
+**Application.** The last phase is the product around that agent. FastAPI serves the chat page, stores each conversation, and returns the explanation plus the scoring JSON. The page turns ranked lists, growth lists, insufficient-data lists, congestion, and mixed-period comparisons into tables, and reads the visible card aloud only when asked. New chat, Enter to send, and the phone layout are part of this phase. The page does not calculate.
+
+```mermaid
+flowchart LR
+  skill[Skill]
+  data[Data fetch]
+  agent[Scoring agent]
+  app[Chat application]
+  data --> agent
+  skill --> agent
+  agent --> app
+```
+
+## 5. Demo
+
+[sky-scout-demo.mp4](sky-scout-demo.mp4)

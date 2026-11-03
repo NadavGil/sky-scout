@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sky-scout": {
+      "command": "/Users/nadavgilron/Desktop/sky-scout/.venv/bin/python",
+      "args": ["-m", "app.mcp"],
+      "env": {
+        "PYTHONPATH": "/Users/nadavgilron/Desktop/sky-scout",
+        "DATABASE_URL": "sqlite:////Users/nadavgilron/Desktop/sky-scout/data/sky-scout.db"
+      }
+    }
+  }
+}
