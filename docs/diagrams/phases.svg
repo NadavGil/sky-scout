@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 280" role="img" aria-labelledby="phaseTitle phaseDesc">
+  <title id="phaseTitle">Build order</title>
+  <desc id="phaseDesc">Data fetch and the ranking skill both feed the scoring agent. The chat calls that agent and does not calculate.</desc>
+  <style>
+    text { font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif; fill: #122033; }
+    .h { font-size: 15px; font-weight: 700; fill: #ffffff; }
+    .b { font-size: 12px; fill: #d5e4f5; }
+    .ink { font-size: 15px; font-weight: 700; fill: #122033; }
+    .muted { font-size: 12px; fill: #5d6d82; }
+  </style>
+  <rect width="880" height="280" fill="#e7eef6"/>
+  <rect x="36" y="24" width="220" height="92" rx="14" fill="#123252"/>
+  <text class="h" x="146" y="58" text-anchor="middle">Data fetch</text>
+  <text class="b" x="146" y="84" text-anchor="middle">Public files in SQLite</text>
+  <rect x="36" y="164" width="220" height="92" rx="14" fill="#123252"/>
+  <text class="h" x="146" y="198" text-anchor="middle">Skill</text>
+  <text class="b" x="146" y="224" text-anchor="middle">Ranking method, verbatim</text>
+  <path d="M256 70 H330 V140 H390" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <path d="M256 210 H330 V140 H390" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="390,140 380,134 380,146" fill="#123252"/>
+  <rect x="394" y="94" width="220" height="92" rx="14" fill="#123252"/>
+  <text class="h" x="504" y="128" text-anchor="middle">Scoring agent</text>
+  <text class="b" x="504" y="154" text-anchor="middle">Scores and refusals</text>
+  <path d="M614 140 H674" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="674,140 664,134 664,146" fill="#123252"/>
+  <rect x="678" y="94" width="166" height="92" rx="14" fill="#ffffff" stroke="#123252"/>
+  <text class="ink" x="761" y="128" text-anchor="middle">Chat</text>
+  <text class="muted" x="761" y="154" text-anchor="middle">Shows the result</text>
+</svg>

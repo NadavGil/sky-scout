@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 560" role="img" aria-labelledby="scoringTitle scoringDesc">
+  <title id="scoringTitle">When a renovation rank exists</title>
+  <desc id="scoringDesc">Demand, capacity pressure, and renovation fit must all be present before an opportunity score is calculated. Missing demand stays insufficient. Demand without the other two stays a watchlist.</desc>
+  <style>
+    text { font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif; fill: #122033; }
+    .h { font-size: 15px; font-weight: 700; }
+    .b { font-size: 13px; }
+    .s { font-size: 12px; fill: #5d6d82; }
+    .on { fill: #ffffff; }
+    .hd { font-size: 13px; font-weight: 700; fill: #ffffff; }
+  </style>
+  <rect width="880" height="560" fill="#e7eef6"/>
+  <rect x="24" y="24" width="260" height="132" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <rect x="24" y="24" width="260" height="36" rx="14" fill="#123252"/>
+  <rect x="24" y="48" width="260" height="12" fill="#123252"/>
+  <text class="hd" x="40" y="47">Demand, D</text>
+  <text class="b" x="40" y="84">Six annual FAA enplanement years</text>
+  <text class="b" x="40" y="104">Cohort of at least two airports</text>
+  <text class="s" x="40" y="132">0.40 / 0.25 / 0.20 / 0.15</text>
+  <rect x="310" y="24" width="260" height="132" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <rect x="310" y="24" width="260" height="36" rx="14" fill="#123252"/>
+  <rect x="310" y="48" width="260" height="12" fill="#123252"/>
+  <text class="hd" x="326" y="47">Capacity pressure, C</text>
+  <text class="b" x="326" y="84">Stored 0-100 observation with a note</text>
+  <text class="b" x="326" y="104">or capacity mapping: 80 | note</text>
+  <text class="s" x="326" y="132">Delays and runway facts are not C</text>
+  <rect x="596" y="24" width="260" height="132" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <rect x="596" y="24" width="260" height="36" rx="14" fill="#123252"/>
+  <rect x="596" y="48" width="260" height="12" fill="#123252"/>
+  <text class="hd" x="612" y="47">Renovation fit, R</text>
+  <text class="b" x="612" y="84">Bottleneck and intervention</text>
+  <text class="b" x="612" y="104">on exactly one airport code</text>
+  <text class="s" x="612" y="132">R is 50 for that analyst text</text>
+  <path d="M154 156 V188 H440 V210" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <path d="M440 156 V210" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <path d="M726 156 V188 H440" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,210 434,200 446,200" fill="#123252"/>
+  <rect x="250" y="214" width="380" height="52" rx="14" fill="#ffffff" stroke="#123252"/>
+  <text class="h" x="440" y="245" text-anchor="middle">D, C, and R all present?</text>
+  <path d="M440 266 V300" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,300 434,290 446,290" fill="#123252"/>
+  <text class="s" x="452" y="286">Yes</text>
+  <rect x="190" y="304" width="500" height="78" rx="14" fill="#123252"/>
+  <text class="hd" x="440" y="334" text-anchor="middle">Opportunity rank, S</text>
+  <text x="440" y="358" text-anchor="middle" fill="#d5e4f5" font-size="13">100 x (D/100)^0.40 x (C/100)^0.35 x (R/100)^0.25</text>
+  <path d="M250 240 H120 V430" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="120,430 114,420 126,420" fill="#123252"/>
+  <text class="s" x="128" y="228">D only</text>
+  <rect x="24" y="434" width="250" height="96" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <text class="h" x="40" y="466">Watchlist</text>
+  <text class="b" x="40" y="490">Ordered by D</text>
+  <text class="s" x="40" y="510">No opportunity score</text>
+  <path d="M630 240 H760 V430" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="760,430 754,420 766,420" fill="#123252"/>
+  <text class="s" x="668" y="228">No six years</text>
+  <rect x="606" y="434" width="250" height="96" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <text class="h" x="622" y="466">Insufficient data</text>
+  <text class="b" x="622" y="490">That airport is named</text>
+  <text class="s" x="622" y="510">Missing is not zero</text>
+</svg>

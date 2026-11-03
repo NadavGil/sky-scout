@@ -10,6 +10,8 @@ Territory on every ranking answer is U.S. states and the District of Columbia. T
 
 Four scores follow the skill. A rank exists only when D, C, and R are all present for one airport and one project.
 
+![When a renovation rank exists](diagrams/scoring.svg)
+
 **Demand, D.** Six comparable annual FAA enplanement years, and a cohort of at least two airports. The window is the latest year on file and the five years before it. Inside that cohort, each component is turned into a 0–100 score by ascending average rank. Ties share the average rank. The weakest peer scores 0.
 
 D = 0.40 long-term growth + 0.25 recent growth + 0.20 absolute increase + 0.15 growth consistency.
@@ -54,6 +56,8 @@ A recap and a bottleneck-evidence question do not calculate a new score. The rec
 
 AI is used in one place: routing.
 
+![How a chat question is answered](diagrams/routing.svg)
+
 When `GEMINI_API_KEY` is set, Gemini 3.8 Flash receives the conversation at temperature 0 and may call one tool: `screen`, `compare`, `share`, `gap`, `brief`, or `method`. It has no web search and no calculator. If that model is unavailable, the client tries `gemini-3.5-flash-lite` and then `gemini-flash-lite-latest`. If the call times out, cannot be reached, or returns 404, 500, 503, or 504, a local router picks the tool from the wording. With no key, the local router is used from the start.
 
 A few questions are routed in Python before Gemini sees them: a request to summarize the recommendation, a question about how a terminal bottleneck differs from a runway or airspace bottleneck, and a comparison that names a different period for each airport.
@@ -76,16 +80,7 @@ Each part was built for one job, then the next part called it. The order was the
 
 **Application.** The last phase is the product around that agent. FastAPI serves the chat page, stores each conversation, and returns the explanation plus the scoring JSON. The page turns ranked lists, growth lists, insufficient-data lists, congestion, and mixed-period comparisons into tables, and reads the visible card aloud only when asked. New chat, Enter to send, and the phone layout are part of this phase. The page does not calculate.
 
-```mermaid
-flowchart LR
-  skill[Skill]
-  data[Data fetch]
-  agent[Scoring agent]
-  app[Chat application]
-  data --> agent
-  skill --> agent
-  agent --> app
-```
+![Build order](diagrams/phases.svg)
 
 ## 5. Demo
 

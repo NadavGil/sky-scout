@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" role="img" aria-labelledby="routeTitle routeDesc">
+  <title id="routeTitle">How a chat question is answered</title>
+  <desc id="routeDesc">Python handles a few follow-ups before Gemini. Gemini only chooses a tool. Scoring reads SQLite and Python writes the reply.</desc>
+  <style>
+    text { font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif; fill: #122033; }
+    .h { font-size: 15px; font-weight: 700; }
+    .b { font-size: 13px; }
+    .s { font-size: 12px; fill: #5d6d82; }
+    .hd { font-size: 13px; font-weight: 700; fill: #ffffff; }
+  </style>
+  <rect width="880" height="640" fill="#e7eef6"/>
+  <rect x="280" y="20" width="320" height="52" rx="14" fill="#123252"/>
+  <text class="hd" x="440" y="51" text-anchor="middle">Question sent from the chat</text>
+  <path d="M440 72 V98" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,98 434,88 446,88" fill="#123252"/>
+  <rect x="230" y="102" width="420" height="64" rx="14" fill="#ffffff" stroke="#123252"/>
+  <text class="h" x="440" y="128" text-anchor="middle">Python follow-up?</text>
+  <text class="s" x="440" y="150" text-anchor="middle">Summary, bottleneck evidence, or two different periods</text>
+  <path d="M650 134 H760 V250" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="760,250 754,240 766,240" fill="#123252"/>
+  <text class="s" x="668" y="126">Yes</text>
+  <path d="M440 166 V198" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,198 434,188 446,188" fill="#123252"/>
+  <text class="s" x="452" y="186">No</text>
+  <rect x="250" y="202" width="380" height="70" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <text class="h" x="440" y="230" text-anchor="middle">Gemini 3.8 Flash</text>
+  <text class="s" x="440" y="252" text-anchor="middle">Then 3.5 Flash-Lite, then Flash-Lite latest</text>
+  <path d="M250 237 H140 V320" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="140,320 134,310 146,310" fill="#123252"/>
+  <text class="s" x="148" y="228">No key or failure</text>
+  <rect x="24" y="324" width="232" height="70" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <text class="h" x="140" y="354" text-anchor="middle">Local router</text>
+  <text class="s" x="140" y="376" text-anchor="middle">Wording picks the tool</text>
+  <rect x="620" y="254" width="236" height="70" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <text class="h" x="738" y="284" text-anchor="middle">Same tools</text>
+  <text class="s" x="738" y="306" text-anchor="middle">Chosen in Python</text>
+  <path d="M440 272 V348" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,348 434,338 446,338" fill="#123252"/>
+  <path d="M140 394 H300 V420" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <path d="M738 324 H520 V420" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <rect x="250" y="352" width="380" height="86" rx="14" fill="#123252"/>
+  <text class="hd" x="440" y="384" text-anchor="middle">One tool</text>
+  <text x="440" y="410" text-anchor="middle" fill="#d5e4f5" font-size="13">screen, compare, share, gap, brief, method</text>
+  <path d="M440 438 V468" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,468 434,458 446,458" fill="#123252"/>
+  <rect x="250" y="472" width="380" height="64" rx="14" fill="#ffffff" stroke="#d5deea"/>
+  <text class="h" x="440" y="498" text-anchor="middle">SQLite</text>
+  <text class="s" x="440" y="520" text-anchor="middle">Python computes every figure</text>
+  <path d="M440 536 V566" fill="none" stroke="#123252" stroke-width="1.5"/>
+  <polygon points="440,566 434,556 446,556" fill="#123252"/>
+  <rect x="250" y="570" width="380" height="50" rx="14" fill="#ffffff" stroke="#123252"/>
+  <text class="h" x="440" y="600" text-anchor="middle">explain_locally writes the card</text>
+</svg>
